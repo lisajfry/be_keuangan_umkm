@@ -5,28 +5,47 @@ namespace App\Http\Controllers;
 use App\Models\Account;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\ReportExport;
 
 class ReportController extends Controller
 {
     /** =====================================================
-     *  🔹 Helper: Filter tanggal atau bulan
+     *  🔹 Helper: Ambil ID UMKM yang sedang login
+     * ==================================================== */
+    private function currentUmkmId()
+    {
+        return Auth::guard('umkm')->id();
+    }
+
+    /** =====================================================
+     *  🔹 Helper: Filter tanggal / bulan
      * ==================================================== */
     private function dateRange($query, Request $request)
     {
         if ($request->has('month') && !empty($request->month)) {
-    // Jika formatnya 'YYYY-MM' → pisahkan tahun dan bulan
-    if (preg_match('/^\d{4}-\d{2}$/', $request->month)) {
-        [$year, $month] = explode('-', $request->month);
-        $query->whereYear('transactions.date', $year)
-              ->whereMonth('transactions.date', $month);
-    } else {
-        // Kalau cuma angka bulan
-        $query->whereMonth('transactions.date', $request->month);
+            if (preg_match('/^\d{4}-\d{2}$/', $request->month)) {
+                [$year, $month] = explode('-', $request->month);
+                $query->whereYear('transactions.date', $year)
+                      ->whereMonth('transactions.date', $month);
+            } else {
+                $query->whereMonth('transactions.date', $request->month);
+            }
+        } elseif ($request->has(['start_date', 'end_date'])) {
+            $query->whereBetween('transactions.date', [$request->start_date, $request->end_date]);
+        }
     }
-}
 
+    /** =====================================================
+     *  🔹 Query dasar untuk semua laporan
+     * ==================================================== */
+    private function baseQuery()
+    {
+        return DB::table('transaction_details')
+            ->join('transactions', 'transactions.id', '=', 'transaction_details.transaction_id')
+            ->join('accounts', 'transaction_details.account_id', '=', 'accounts.id')
+            ->where('transactions.umkm_id', $this->currentUmkmId()); // ✅ hanya data UMKM login
     }
 
     /** =====================================================
@@ -34,13 +53,12 @@ class ReportController extends Controller
      * ==================================================== */
     private function sumByType($type, Request $request, $formula)
     {
-        $query = DB::table('transaction_details')
-            ->join('accounts', 'transaction_details.account_id', '=', 'accounts.id')
-            ->join('transactions', 'transactions.id', '=', 'transaction_details.transaction_id')
+        $query = $this->baseQuery()
             ->where('accounts.type', $type)
             ->selectRaw("SUM($formula) as total");
 
         $this->dateRange($query, $request);
+
         return (float) ($query->value('total') ?? 0);
     }
 
@@ -53,9 +71,7 @@ class ReportController extends Controller
         $expense = $this->sumByType('expense', $request, 'debit - credit');
         $netIncome = $revenue - $expense;
 
-        $details = DB::table('accounts')
-            ->leftJoin('transaction_details', 'accounts.id', '=', 'transaction_details.account_id')
-            ->leftJoin('transactions', 'transactions.id', '=', 'transaction_details.transaction_id')
+        $details = $this->baseQuery()
             ->whereIn('accounts.type', ['revenue', 'expense'])
             ->select(
                 'accounts.name',
@@ -78,12 +94,11 @@ class ReportController extends Controller
     {
         $income = $this->incomeStatement($request)->getData()->netIncome ?? 0;
 
-        $dividends = DB::table('transaction_details')
-            ->join('transactions', 'transactions.id', '=', 'transaction_details.transaction_id')
+        $dividends = $this->baseQuery()
             ->where('transactions.is_dividend', true)
             ->sum('transaction_details.credit');
 
-        $beginning = 0; // bisa diambil dari tabel saldo awal kalau kamu punya
+        $beginning = 0; // jika ada saldo awal, ambil dari tabel lain
         $retained = $beginning + $income - $dividends;
 
         return response()->json([
@@ -107,9 +122,7 @@ class ReportController extends Controller
 
         $data = [];
         foreach ($types as $type => $formula) {
-            $query = DB::table('accounts')
-                ->leftJoin('transaction_details', 'accounts.id', '=', 'transaction_details.account_id')
-                ->leftJoin('transactions', 'transactions.id', '=', 'transaction_details.transaction_id')
+            $query = $this->baseQuery()
                 ->where('accounts.type', $type)
                 ->select('accounts.name', DB::raw("SUM($formula) as balance"))
                 ->groupBy('accounts.name');
@@ -124,7 +137,8 @@ class ReportController extends Controller
             'total_equity' => $data['equity']->sum('balance'),
         ];
 
-        $totals['balanced'] = round($totals['total_assets'], 2) === round($totals['total_liabilities'] + $totals['total_equity'], 2);
+        $totals['balanced'] = round($totals['total_assets'], 2)
+            === round($totals['total_liabilities'] + $totals['total_equity'], 2);
 
         return response()->json(array_merge($data, $totals));
     }
@@ -133,31 +147,38 @@ class ReportController extends Controller
      *  4️⃣ Laporan Arus Kas
      * ==================================================== */
     public function cashFlow(Request $request)
-    {
-        $cashAccountIds = Account::where('is_cash', true)->pluck('id')->toArray();
-        if (empty($cashAccountIds)) {
-            return response()->json(['message' => 'No cash account defined.'], 422);
-        }
+{
+    // Ambil semua akun kas global
+    $cashAccountIds = Account::where('is_cash', true)
+        ->pluck('id')
+        ->toArray();
 
-        $query = DB::table('transactions')
-            ->join('transaction_details', 'transactions.id', '=', 'transaction_details.transaction_id')
-            ->whereIn('transaction_details.account_id', $cashAccountIds)
-            ->select('transactions.cash_flow_category', DB::raw('SUM(transaction_details.debit - transaction_details.credit) as cash_change'));
-
-        $this->dateRange($query, $request);
-
-        $rows = $query->groupBy('transactions.cash_flow_category')->get();
-
-        $operating = $rows->firstWhere('cash_flow_category', 'operating')->cash_change ?? 0;
-        $investing = $rows->firstWhere('cash_flow_category', 'investing')->cash_change ?? 0;
-        $financing = $rows->firstWhere('cash_flow_category', 'financing')->cash_change ?? 0;
-        $net = $operating + $investing + $financing;
-
-        return response()->json(compact('operating', 'investing', 'financing', 'net'));
+    if (empty($cashAccountIds)) {
+        return response()->json(['message' => 'Tidak ada akun kas yang terdaftar.'], 422);
     }
 
+    $query = $this->baseQuery()
+        ->whereIn('transaction_details.account_id', $cashAccountIds)
+        ->select(
+            'transactions.cash_flow_category',
+            DB::raw('SUM(transaction_details.debit - transaction_details.credit) as cash_change')
+        );
+
+    $this->dateRange($query, $request);
+
+    $rows = $query->groupBy('transactions.cash_flow_category')->get();
+
+    $operating = $rows->firstWhere('cash_flow_category', 'operating')->cash_change ?? 0;
+    $investing = $rows->firstWhere('cash_flow_category', 'investing')->cash_change ?? 0;
+    $financing = $rows->firstWhere('cash_flow_category', 'financing')->cash_change ?? 0;
+    $net = $operating + $investing + $financing;
+
+    return response()->json(compact('operating', 'investing', 'financing', 'net'));
+}
+
+
     /** =====================================================
-     *  5️⃣ Ringkasan Semua Laporan (Dashboard)
+     *  5️⃣ Ringkasan Semua Laporan
      * ==================================================== */
     public function summary(Request $request)
     {
@@ -170,37 +191,31 @@ class ReportController extends Controller
     }
 
     /** =====================================================
-     *  6️⃣ Download Excel (semua laporan digabung)
+     *  6️⃣ Download Excel (per UMKM login)
      * ==================================================== */
-   
     public function downloadExcel(Request $request)
 {
     $month = $request->input('month', now()->month);
     $year  = $request->input('year', now()->year);
 
-    // Tambahkan bulan ke dalam Request supaya fungsi lain tetap bisa akses
     $request->merge(['month' => $month, 'year' => $year]);
 
-    // Ambil data laporan
-    $incomeStatement  = $this->incomeStatement($request)->getData(true);
-    $retainedEarnings = $this->retainedEarnings($request)->getData(true);
-    $balanceSheet     = $this->balanceSheet($request)->getData(true);
-    $cashFlow         = $this->cashFlow($request)->getData(true);
+    // Ambil UMKM login
+    $umkm = auth('umkm')->user();
 
     $data = [
         'month'              => $month,
         'year'               => $year,
-        'income_statement'   => $incomeStatement,
-        'retained_earnings'  => $retainedEarnings,
-        'balance_sheet'      => $balanceSheet,
-        'cash_flow'          => $cashFlow,
+        'nama_umkm'          => $umkm->nama_umkm ?? 'UMKM Tidak Diketahui',
+        'income_statement'   => $this->incomeStatement($request)->getData(true),
+        'retained_earnings'  => $this->retainedEarnings($request)->getData(true),
+        'balance_sheet'      => $this->balanceSheet($request)->getData(true),
+        'cash_flow'          => $this->cashFlow($request)->getData(true),
     ];
 
-    $filename = "laporan_keuangan_{$year}_{$month}.xlsx";
+    $filename = "laporan_keuangan_{$year}{$month}_umkm{$umkm->nama_umkm}.xlsx";
 
     return Excel::download(new ReportExport($data), $filename);
 }
-
-
 
 }

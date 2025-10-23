@@ -10,6 +10,7 @@ class Transaction extends Model
     use HasFactory;
 
     protected $fillable = [
+        'umkm_id',
         'date',
         'description',
         'category',
@@ -21,4 +22,10 @@ class Transaction extends Model
     {
         return $this->hasMany(TransactionDetail::class);
     }
+
+    public function umkm()
+{
+    return $this->belongsTo(Umkm::class, 'umkm_id');
+}
+
 }

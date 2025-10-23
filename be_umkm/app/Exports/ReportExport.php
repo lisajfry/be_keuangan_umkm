@@ -27,13 +27,16 @@ class ReportExport implements FromArray, WithStyles, WithTitle
 
     public function array(): array
     {
-        $rows = [];
+        
+    $rows = [];
 
-        // === HEADER LAPORAN ===
-       $rows[] = ['LAPORAN KEUANGAN UMKM'];
-$rows[] = ['Periode', $this->getMonthName($this->data['month']) . ' ' . $this->data['year']];
-$rows[] = ['Tanggal Cetak', now()->format('d-m-Y')];
-$rows[] = ['']; // spasi kosong
+    // === HEADER LAPORAN ===
+    $rows[] = ['LAPORAN KEUANGAN UMKM'];
+    $rows[] = ['Nama UMKM', $this->data['nama_umkm'] ?? '-'];
+    $rows[] = ['Periode', $this->getMonthName($this->data['month']) . ' ' . $this->data['year']];
+    $rows[] = ['Tanggal Cetak', now()->format('d-m-Y')];
+    $rows[] = ['']; // spasi kosong
+
 
 
 

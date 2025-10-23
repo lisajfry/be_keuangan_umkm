@@ -63,4 +63,12 @@ class UmkmAuthController extends Controller
             'data' => $umkm
         ]);
     }
+
+    public function logout(Request $request)
+{
+    $request->user()->currentAccessToken()->delete();
+
+    return response()->json(['message' => 'Logout berhasil']);
+}
+
 }

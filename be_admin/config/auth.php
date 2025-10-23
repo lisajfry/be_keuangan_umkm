@@ -3,8 +3,8 @@
 return [
 
     'defaults' => [
-        'guard' => 'web',
-        'passwords' => 'users',
+        'guard' => 'admin', // 🔹 ubah default guard jadi admin
+        'passwords' => 'admins', // 🔹 sesuaikan provider password
     ],
 
     'guards' => [
@@ -13,15 +13,15 @@ return [
             'provider' => 'users',
         ],
 
-        // Guard Sanctum umum (dipakai oleh UMKM)
+        // Guard Sanctum umum (misal untuk UMKM)
         'sanctum' => [
             'driver' => 'sanctum',
             'provider' => 'users',
         ],
 
-        // Guard khusus admin
+        // 🔹 Guard khusus admin
         'admin' => [
-            'driver' => 'sanctum', // penting! pakai sanctum biar bisa baca token admin
+            'driver' => 'sanctum', // penting untuk token-based auth
             'provider' => 'admins',
         ],
     ],
@@ -32,7 +32,7 @@ return [
             'model' => App\Models\User::class,
         ],
 
-        // Provider admin
+        // 🔹 Provider admin
         'admins' => [
             'driver' => 'eloquent',
             'model' => App\Models\Admin::class,
@@ -42,6 +42,14 @@ return [
     'passwords' => [
         'users' => [
             'provider' => 'users',
+            'table' => 'password_reset_tokens',
+            'expire' => 60,
+            'throttle' => 60,
+        ],
+
+        // 🔹 tambahkan bagian ini buat admin
+        'admins' => [
+            'provider' => 'admins',
             'table' => 'password_reset_tokens',
             'expire' => 60,
             'throttle' => 60,
