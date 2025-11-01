@@ -3,9 +3,9 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\UmkmController;
-
+use App\Http\Controllers\AdminReportController;
 use App\Http\Controllers\UmkmApprovalController;
-use App\Http\Controllers\AdminUmkmController;
+use App\Http\Controllers\AdminUmkmController; 
 use App\Http\Controllers\TransactionController;
 
 /*
@@ -36,13 +36,24 @@ Route::middleware('auth:admin')->group(function () {
     Route::post('/umkms/{id}/approve', [UmkmApprovalController::class, 'approve']);
     Route::post('/umkms/{id}/reject', [UmkmController::class, 'reject']);
 
-   
-
+    // 🔹 Transaksi
     Route::get('/transactions', [TransactionController::class, 'index']);
-
-    // Untuk admin (lihat semua UMKM)
     Route::get('/admin/transactions', [TransactionController::class, 'adminIndex']);
-
-    // Jika frontend memang minta by /umkm/{id}/transactions
     Route::get('/umkm/{id}/transactions', [TransactionController::class, 'umkmTransactions']);
+
+    /*
+    |--------------------------------------------------------------------------
+    | 🔹 Laporan Keuangan Admin (semua UMKM)
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('admin/report')->group(function () {
+        Route::get('/income-statement', [AdminReportController::class, 'incomeStatement']);
+        Route::get('/balance-sheet', [AdminReportController::class, 'balanceSheet']);
+        Route::get('/summary', [AdminReportController::class, 'summary']);
+        Route::get('/download', [AdminReportController::class, 'downloadExcel']);
+
+        // Tambahan:
+        Route::get('/summary-all', [AdminReportController::class, 'summaryAllUmkm']);
+        Route::get('/dashboard', [AdminReportController::class, 'dashboardSummary']);
+    });
 });

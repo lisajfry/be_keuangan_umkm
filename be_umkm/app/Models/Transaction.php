@@ -15,7 +15,6 @@ class Transaction extends Model
         'description',
         'category',
         'cash_flow_category',
-        'is_dividend',
     ];
 
     public function details()

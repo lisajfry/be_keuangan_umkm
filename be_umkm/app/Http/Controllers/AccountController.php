@@ -9,7 +9,8 @@ class AccountController extends Controller
 {
     public function index()
     {
-        // return data JSON sederhana
-        return response()->json(Account::select('id', 'name')->get());
+        return response()->json(
+            Account::select('id', 'name', 'type', 'normal_balance', 'is_cash')->get()
+        );
     }
 }

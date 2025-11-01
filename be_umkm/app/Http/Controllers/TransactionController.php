@@ -2,14 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Account;
 use App\Models\Transaction;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
 
 class TransactionController extends Controller
 {
-
     public function index(Request $request)
     {
         $query = Transaction::with('details.account')
@@ -30,7 +29,6 @@ class TransactionController extends Controller
             ->findOrFail($id);
     }
 
-  
     public function store(Request $request)
     {
         $umkm = Auth::guard('umkm')->user();
@@ -40,10 +38,8 @@ class TransactionController extends Controller
 
         $validated = $request->validate([
             'date' => 'required|date',
-            'description' => 'required|string',
-            'category' => 'required|string',
-            'cash_flow_category' => ['required', Rule::in(['operating', 'investing', 'financing'])],
-            'is_dividend' => 'nullable|boolean',
+            'description' => 'nullable|string',
+            'category' => 'nullable|string',
             'details' => 'required|array|min:1',
             'details.*.account_id' => 'required|integer|exists:accounts,id',
             'details.*.debit' => 'nullable|numeric|min:0',
@@ -57,15 +53,22 @@ class TransactionController extends Controller
             return response()->json(['message' => '❌ Transaksi tidak seimbang antara debit dan kredit.'], 422);
         }
 
-        $transaction = Transaction::create([
-            'umkm_id' => $umkm->id,
-            'date' => $validated['date'],
-            'description' => $validated['description'],
-            'category' => $validated['category'],
-            'cash_flow_category' => $validated['cash_flow_category'],
-            'is_dividend' => $request->boolean('is_dividend', false),
-        ]);
+        // ===============================
+        // OTOMATIS TENTUKAN CASH FLOW CATEGORY
+        // ===============================
+        $cashFlowCategory = $this->detectCashFlowCategory($validated['details'], $validated['description'] ?? '');
 
+        // Simpan transaksi utama
+       $transaction = Transaction::create([
+    'umkm_id' => $umkm->id,
+    'date' => $validated['date'],
+    'description' => $validated['description'] ?? null,
+    'category' => $validated['category'] ?? null,
+    'cash_flow_category' => $cashFlowCategory,
+]);
+
+
+        // Simpan detail transaksi
         foreach ($validated['details'] as $detail) {
             $transaction->details()->create([
                 'account_id' => $detail['account_id'],
@@ -77,6 +80,46 @@ class TransactionController extends Controller
         return response()->json(['message' => '✅ Transaksi berhasil disimpan']);
     }
 
+    private function detectCashFlowCategory(array $details, string $description): ?string
+    {
+        $desc = strtolower($description);
+
+        foreach ($details as $detail) {
+            $acc = Account::find($detail['account_id']);
+            if (!$acc) continue;
+
+            $name = strtolower($acc->name);
+            $type = strtolower($acc->type);
+
+            // Jika akun kas, skip (karena kas hanya media keluar/masuk uang)
+            if ($acc->is_cash) continue;
+
+            // Berdasarkan tipe akun
+            switch ($type) {
+                case 'revenue':
+                case 'expense':
+                    return 'operating';
+                case 'asset':
+                    return 'investing';
+                case 'equity':
+                case 'liability':
+                    return 'financing';
+            }
+
+            // Berdasarkan deskripsi (fallback)
+            if (str_contains($desc, 'penjualan') || str_contains($desc, 'gaji')) {
+                return 'operating';
+            } elseif (str_contains($desc, 'peralatan') || str_contains($desc, 'aset')) {
+                return 'investing';
+            } elseif (str_contains($desc, 'modal') || str_contains($desc, 'pinjaman') || str_contains($desc, 'dividen')) {
+                return 'financing';
+            }
+        }
+
+        // Default kalau tidak terdeteksi
+        return 'operating';
+    }
+
     public function destroy($id)
     {
         $transaction = Transaction::where('umkm_id', auth()->user()->id)->findOrFail($id);
@@ -84,23 +127,6 @@ class TransactionController extends Controller
 
         return response()->json(['message' => '🗑 Transaksi dihapus']);
     }
-
-   
-    public function adminIndex(Request $request)
-{
-    if (!auth('sanctum')->check()) {
-        return response()->json(['message' => 'Unauthorized'], 401);
-    }
-
-    $transactions = Transaction::with('umkm')->latest()->get();
-
-    return response()->json([
-        'status' => 'success',
-        'data' => $transactions,
-    ]);
-}
-
-
 
     // ===== Helper =====
     private function sumAmount($details, $type)
