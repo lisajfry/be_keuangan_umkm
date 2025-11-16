@@ -12,26 +12,26 @@ return new class extends Migration {
         Schema::create('admins', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('email')->unique();
+            $table->string('username')->unique(); // 🔥 GANTI EMAIL → USERNAME
             $table->string('password');
             $table->enum('role', ['admin_dinas', 'dosen_uns', 'umkm'])->default('umkm');
             $table->timestamps();
         });
 
-        // Insert default accounts untuk login awal
+        // Insert akun default
         DB::table('admins')->insert([
             [
                 'name' => 'Admin Dinas',
-                'email' => 'admin_dinas@example.com',
-                'password' => Hash::make('password123'),
+                'username' => 'admin_disperdakop', // ✅ username sesuai permintaan
+                'password' => Hash::make('umkmdinas25'), // ✅ password sesuai permintaan
                 'role' => 'admin_dinas',
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
             [
                 'name' => 'Dosen UNS',
-                'email' => 'dosen_uns@example.com',
-                'password' => Hash::make('password123'),
+                'username' => 'dosen_uns',
+                'password' => Hash::make('umkmdosen25'),
                 'role' => 'dosen_uns',
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -44,3 +44,4 @@ return new class extends Migration {
         Schema::dropIfExists('admins');
     }
 };
+

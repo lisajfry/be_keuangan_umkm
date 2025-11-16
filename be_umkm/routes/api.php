@@ -48,6 +48,9 @@ Route::middleware('auth:umkm')->group(function () {
         Route::get('/retained-earnings', [ReportController::class, 'retainedEarnings']);
         Route::get('/balance-sheet', [ReportController::class, 'balanceSheet']);
         Route::get('/cash-flow', [ReportController::class, 'cashFlow']);
+        Route::get('/monthly-income-expense', [ReportController::class, 'monthlyIncomeExpense']);
+
+
         Route::get('/summary', [ReportController::class, 'summary']);
         Route::get('/download-excel', [ReportController::class, 'downloadExcel']);
     });

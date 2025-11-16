@@ -27,99 +27,113 @@ class ReportExport implements FromArray, WithStyles, WithTitle
 
     public function array(): array
     {
-        
-    $rows = [];
+        $rows = [];
 
-    // === HEADER LAPORAN ===
-    $rows[] = ['LAPORAN KEUANGAN UMKM'];
-    $rows[] = ['Nama UMKM', $this->data['nama_umkm'] ?? '-'];
-    $rows[] = ['Periode', $this->getMonthName($this->data['month']) . ' ' . $this->data['year']];
-    $rows[] = ['Tanggal Cetak', now()->format('d-m-Y')];
-    $rows[] = ['']; // spasi kosong
+        // === HEADER LAPORAN ===
+        $rows[] = ['LAPORAN KEUANGAN UMKM'];
+        $rows[] = ['Nama UMKM', $this->data['nama_umkm'] ?? '-'];
+        $rows[] = ['Periode', $this->getMonthName(date('m', strtotime($this->data['month']))) . ' ' . $this->data['year']];
+        $rows[] = ['Tanggal Cetak', now()->format('d-m-Y')];
+        $rows[] = ['']; // spasi kosong
 
-
-
-
-        /** 1. LAPORAN LABA RUGI **/
+        /**
+         * ==========================
+         * 1️⃣ LAPORAN LABA RUGI
+         * ==========================
+         */
         $rows[] = ['=== LAPORAN LABA RUGI ==='];
-        $rows[] = ['Keterangan Akun', 'Debit', 'Kredit'];
+        $rows[] = ['Keterangan Akun', 'Nilai (Rp)'];
 
-        foreach ($this->data['income_statement']['details'] as $d) {
+        foreach ($this->data['income_statement']['details'] ?? [] as $d) {
+            $netValue = ($d['total_credit'] ?? 0) - ($d['total_debit'] ?? 0);
             $rows[] = [
-                $d['name'],
-                $this->formatCurrency($d['total_debit']),
-                $this->formatCurrency($d['total_credit']),
+                $d['name'] ?? '',
+                $this->formatCurrency($netValue),
             ];
         }
 
         $rows[] = [''];
-        $rows[] = ['Total Pendapatan', '', $this->formatCurrency(abs($this->data['income_statement']['revenue']))];
-        $rows[] = ['Total Beban', $this->formatCurrency(abs($this->data['income_statement']['expense'])), ''];
-        $rows[] = ['Laba Bersih (Net Income)', '', $this->formatCurrency($this->data['income_statement']['netIncome'])];
+        $rows[] = ['Total Pendapatan', $this->formatCurrency(abs($this->data['income_statement']['revenue'] ?? 0))];
+        $rows[] = ['Total Beban', $this->formatCurrency(abs($this->data['income_statement']['expense'] ?? 0))];
+        $rows[] = ['Laba Bersih (Net Income)', $this->formatCurrency($this->data['income_statement']['netIncome'] ?? 0)];
         $rows[] = [''];
 
-        /** 2. PERUBAHAN LABA DITAHAN **/
+        /**
+         * ==========================
+         * 2️⃣ PERUBAHAN LABA DITAHAN
+         * ==========================
+         */
         $rows[] = ['=== LAPORAN PERUBAHAN LABA DITAHAN ==='];
         $rows[] = ['Keterangan', 'Nilai (Rp)'];
-        $rows[] = ['Saldo Awal', $this->formatCurrency($this->data['retained_earnings']['beginning'])];
-        $rows[] = ['Tambah: Laba Bersih Tahun Berjalan', $this->formatCurrency($this->data['retained_earnings']['income'])];
-        $rows[] = ['Kurang: Dividen', $this->formatCurrency($this->data['retained_earnings']['dividends'])];
-        $rows[] = ['Saldo Akhir', $this->formatCurrency($this->data['retained_earnings']['ending'])];
+        $rows[] = ['Saldo Awal', $this->formatCurrency($this->data['retained_earnings']['beginning'] ?? 0)];
+        $rows[] = ['Tambah: Laba Bersih', $this->formatCurrency($this->data['retained_earnings']['income'] ?? 0)];
+        $rows[] = ['Kurang: Dividen/Prive', $this->formatCurrency($this->data['retained_earnings']['dividends'] ?? 0)];
+        $rows[] = ['Saldo Akhir', $this->formatCurrency($this->data['retained_earnings']['ending'] ?? 0)];
+
         $rows[] = [''];
 
-        /** 3. NERACA **/
+        /**
+         * ==========================
+         * 3️⃣ NERACA
+         * ==========================
+         */
         $rows[] = ['=== NERACA ==='];
         $rows[] = ['ASET', 'Nilai (Rp)', 'KEWAJIBAN & EKUITAS', 'Nilai (Rp)'];
 
-        $assets = $this->data['balance_sheet']['asset'];
-        $liabilities = $this->data['balance_sheet']['liability'];
-        $equity = $this->data['balance_sheet']['equity'];
+        $assets = $this->data['balance_sheet']['assets'] ?? [];
+        $liabilities = $this->data['balance_sheet']['liabilities'] ?? [];
+        $equity = $this->data['balance_sheet']['equity'] ?? [];
 
         $max = max(count($assets), count($liabilities) + count($equity));
 
         for ($i = 0; $i < $max; $i++) {
             $assetName = $assets[$i]['name'] ?? '';
-            $assetVal = $assets[$i]['balance'] ?? '';
+            $assetVal = $assets[$i]['balance'] ?? 0;
 
             if ($i < count($liabilities)) {
-                $liabEquityName = $liabilities[$i]['name'];
-                $liabEquityVal = $liabilities[$i]['balance'];
+                $liabName = $liabilities[$i]['name'];
+                $liabVal = $liabilities[$i]['balance'];
             } else {
                 $eqIndex = $i - count($liabilities);
-                $liabEquityName = $equity[$eqIndex]['name'] ?? '';
-                $liabEquityVal = $equity[$eqIndex]['balance'] ?? '';
+                $liabName = $equity[$eqIndex]['name'] ?? '';
+                $liabVal = $equity[$eqIndex]['balance'] ?? 0;
             }
 
             $rows[] = [
                 $assetName,
                 $this->formatCurrency($assetVal),
-                $liabEquityName,
-                $this->formatCurrency($liabEquityVal),
+                $liabName,
+                $this->formatCurrency($liabVal),
             ];
         }
 
         $rows[] = [''];
         $rows[] = [
             'Total Aset',
-            $this->formatCurrency($this->data['balance_sheet']['total_assets']),
+            $this->formatCurrency($this->data['balance_sheet']['total_assets'] ?? 0),
             'Total Kewajiban + Ekuitas',
-            $this->formatCurrency($this->data['balance_sheet']['total_liabilities'] + $this->data['balance_sheet']['total_equity']),
+            $this->formatCurrency(($this->data['balance_sheet']['total_liabilities'] ?? 0) + ($this->data['balance_sheet']['total_equity'] ?? 0)),
         ];
         $rows[] = [
             'Status Neraca',
-            $this->data['balance_sheet']['balanced'] ? '✅ Seimbang' : '❌ Tidak Seimbang',
-            '',
-            '',
+            ($this->data['balance_sheet']['balanced'] ?? false) ? '✅ Seimbang' : '❌ Tidak Seimbang',
+            '', '',
         ];
         $rows[] = [''];
 
-        /** 4. ARUS KAS **/
+        /**
+         * ==========================
+         * 4️⃣ ARUS KAS
+         * ==========================
+         */
         $rows[] = ['=== LAPORAN ARUS KAS ==='];
         $rows[] = ['Aktivitas', 'Nilai (Rp)'];
-        $rows[] = ['Arus Kas dari Aktivitas Operasi', $this->formatCurrency($this->data['cash_flow']['operating'])];
-        $rows[] = ['Arus Kas dari Aktivitas Investasi', $this->formatCurrency($this->data['cash_flow']['investing'])];
-        $rows[] = ['Arus Kas dari Aktivitas Pendanaan', $this->formatCurrency($this->data['cash_flow']['financing'])];
-        $rows[] = ['Kenaikan (Penurunan) Kas Bersih', $this->formatCurrency($this->data['cash_flow']['net'])];
+        $rows[] = ['Arus Kas dari Aktivitas Operasi', $this->formatCurrency($this->data['cash_flow']['operating'] ?? 0)];
+$rows[] = ['Arus Kas dari Aktivitas Investasi', $this->formatCurrency($this->data['cash_flow']['investing'] ?? 0)];
+$rows[] = ['Arus Kas dari Aktivitas Pendanaan', $this->formatCurrency($this->data['cash_flow']['financing'] ?? 0)];
+$rows[] = ['Kenaikan (Penurunan) Kas Bersih', $this->formatCurrency($this->data['cash_flow']['net_change_in_cash'] ?? 0)];
+$rows[] = ['Saldo Kas Awal', $this->formatCurrency($this->data['cash_flow']['cash_start'] ?? 0)];
+$rows[] = ['Saldo Kas Akhir', $this->formatCurrency($this->data['cash_flow']['cash_end'] ?? 0)];
 
         return $rows;
     }
@@ -131,16 +145,17 @@ class ReportExport implements FromArray, WithStyles, WithTitle
         return number_format($value, 2, ',', '.');
     }
 
-
     protected function getMonthName($month)
-{
-    $months = [
-        1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
-        5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
-        9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'
-    ];
-    return $months[(int)$month] ?? $month;
-}
+    {
+        $months = [
+            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'
+        ];
+        return $months[(int)$month] ?? $month;
+    }
+
+   
 
 
     public function styles(Worksheet $sheet)
@@ -239,24 +254,55 @@ class ReportExport implements FromArray, WithStyles, WithTitle
     $sheet->getStyle('C:C')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
 
     // === BORDER GANDA UNTUK TOTAL DAN LABA BERSIH ===
-    foreach (range(1, $highestRow) as $row) {
-        $val = strtoupper((string) $sheet->getCell("A{$row}")->getValue());
-        if (str_contains($val, 'TOTAL') || str_contains($val, 'LABA BERSIH')) {
-            $sheet->getStyle("A{$row}:D{$row}")->applyFromArray([
-                'font' => ['bold' => true],
-                'borders' => [
-                    'top' => [
-                        'borderStyle' => Border::BORDER_DOUBLE,
-                        'color' => ['rgb' => '000000'],
-                    ],
-                    'bottom' => [
-                        'borderStyle' => Border::BORDER_DOUBLE,
-                        'color' => ['rgb' => '000000'],
-                    ],
+    // === GAYA UNTUK BARIS PENTING ===
+foreach (range(1, $highestRow) as $row) {
+    $val = strtoupper((string) $sheet->getCell("A{$row}")->getValue());
+
+    // Bold + border ganda (untuk total, laba bersih, kenaikan kas, dan saldo akhir)
+    if (
+        str_contains($val, 'TOTAL') ||
+        str_contains($val, 'LABA BERSIH') ||
+        str_contains($val, 'KENAIKAN (PENURUNAN) KAS BERSIH') ||
+        str_contains($val, 'SALDO AKHIR')
+    ) {
+        $sheet->getStyle("A{$row}:D{$row}")->applyFromArray([
+            'font' => [
+                'bold' => true,
+                'color' => ['rgb' => '1F497D'],
+                'size' => 12,
+            ],
+            'borders' => [
+                'top' => [
+                    'borderStyle' => Border::BORDER_DOUBLE,
+                    'color' => ['rgb' => '000000'],
                 ],
-            ]);
-        }
+                'bottom' => [
+                    'borderStyle' => Border::BORDER_DOUBLE,
+                    'color' => ['rgb' => '000000'],
+                ],
+            ],
+        ]);
     }
+
+    // Pastikan "Tambah: Laba Bersih" tetap normal (tidak tebal, tanpa border ganda)
+    if (str_contains($val, 'TAMBAH: LABA BERSIH')) {
+        $sheet->getStyle("A{$row}:D{$row}")->applyFromArray([
+            'font' => [
+                'bold' => false,
+                'color' => ['rgb' => '000000'],
+            ],
+            'borders' => [
+                'top' => [
+                    'borderStyle' => Border::BORDER_NONE,
+                ],
+                'bottom' => [
+                    'borderStyle' => Border::BORDER_NONE,
+                ],
+            ],
+        ]);
+    }
+}
+
 
     // === AUTO SIZE ===
     foreach (range('A', 'D') as $col) {
