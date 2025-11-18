@@ -1,3 +1,14 @@
+# Requirement 
+
+ php                ^8.2.23   
+ composer           ^2.7.9
+ laravel/framework  ^12.0   
+ laravel/sanctum    ^4.2    
+ laravel/tinker     ^2.10.1 
+ maatwebsite/excel  ^3.1    
+
+
+
 # 1. Clone Repository
 
 ```bash
@@ -5,7 +16,7 @@ git clone https://github.com/lisajfry/be_keuangan_umkm.git
 cd be_keuangan_umkm
 ```
 # 2. Instalasi & Menjalankan be_admin
-
+menginstall semua package otomatis
 Masuk ke folder:
 ```bash
 cd be_admin
@@ -189,6 +200,7 @@ composer require maatwebsite/excel
 
 ## 3.3 Jalankan Server Admin
 php artisan serve --host=127.0.0.1 --port=80001
+
 
 
 
