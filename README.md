@@ -1,10 +1,10 @@
 # Requirement 
 
  php                ^8.2.23   
- composer           ^2.7.9
+ composer           ^2.7.9     
  laravel/framework  ^12.0   
  laravel/sanctum    ^4.2    
- laravel/tinker     ^2.10.1 
+ laravel/tinker     ^2.10.1    
  maatwebsite/excel  ^3.1    
 
 
@@ -200,6 +200,7 @@ composer require maatwebsite/excel
 
 ## 3.3 Jalankan Server Admin
 php artisan serve --host=127.0.0.1 --port=80001
+
 
 
 
