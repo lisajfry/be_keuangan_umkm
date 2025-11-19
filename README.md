@@ -198,8 +198,9 @@ VITE_APP_NAME="${APP_NAME}"
 composer require maatwebsite/excel
 ```
 
-## 3.3 Jalankan Server Admin
-php artisan serve --host=127.0.0.1 --port=80001
+## 3.3 Jalankan Server UMKM
+php artisan serve --host=127.0.0.1 --port=8001
+
 
 
 
